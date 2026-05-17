@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install PostgreSQL client
         run: |
@@ -37,9 +39,16 @@ jobs:
         run: |
           set -e
 
-          CHANGED_FILES=$(git diff --name-only \
-            HEAD~1 HEAD \
-            | grep -E '^pipelines/.*(\.sql|\.rw)$' || true)
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+
+          if [[ "$BEFORE" == "0000000000000000000000000000000000000000" ]]; then
+            # First push to this branch — list all pipeline files
+            CHANGED_FILES=$(git ls-files 'pipelines/' | grep -E '\.(sql|rw)$' || true)
+          else
+            CHANGED_FILES=$(git diff --name-only "$BEFORE" "$AFTER" \
+              | grep -E '^pipelines/.*(\.sql|\.rw)$' || true)
+          fi
 
           echo "Detected changed files:"
           echo "$CHANGED_FILES"
