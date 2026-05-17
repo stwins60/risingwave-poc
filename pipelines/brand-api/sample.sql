@@ -1,4 +1,4 @@
--- sample.sql
+-- sample-query.sql
 
 CREATE TABLE orders (
 order_id BIGINT,
