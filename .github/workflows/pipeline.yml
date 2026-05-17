@@ -97,12 +97,22 @@ jobs:
               echo "$file"
               echo "========================================"
 
-              psql \
+              # Strip sqllogictest directives: comments (#), statement/query
+              # headers, result blocks (after ---), and result rows.
+              SQL=$(awk '
+                /^#/          { next }
+                /^statement /  { in_result=0; next }
+                /^query/       { in_result=0; next }
+                /^-+$/         { in_result=1; next }
+                /^$/           { in_result=0; print ""; next }
+                               { if (!in_result) print }
+              ' "$file")
+
+              echo "$SQL" | psql \
                 -h $RISINGWAVE_HOST \
                 -p $RISINGWAVE_PORT \
                 -U $RISINGWAVE_USER \
-                -d dev \
-                -f "$file"
+                -d dev
 
               echo "Completed: $file"
             fi
