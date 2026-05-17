@@ -1,0 +1,105 @@
+name: Pipeline Query Runner
+
+on:
+  push:
+    branches:
+      - master
+
+    paths:
+      - 'pipelines/**'
+
+jobs:
+  run-files:
+    runs-on: ubuntu-latest
+
+    env:
+      POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+      POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+
+      RISINGWAVE_HOST: ${{ secrets.RISINGWAVE_HOST }}
+      RISINGWAVE_PORT: ${{ secrets.RISINGWAVE_PORT }}
+      RISINGWAVE_USER: ${{ secrets.RISINGWAVE_USER }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Find changed SQL and RW files
+        id: files
+        shell: bash
+        run: |
+          set -e
+
+          CHANGED_FILES=$(git diff --name-only \
+            HEAD~1 HEAD \
+            | grep -E '^pipelines/.*(\.sql|\.rw)$' || true)
+
+          echo "Detected changed files:"
+          echo "$CHANGED_FILES"
+
+          echo "changed_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Execute SQL files on PostgreSQL
+        if: contains(steps.files.outputs.changed_files, '.sql')
+        shell: bash
+        run: |
+          set -e
+
+          echo "${{ steps.files.outputs.changed_files }}" | while read file; do
+
+            if [[ "$file" == *.sql ]]; then
+              echo "========================================"
+              echo "Running SQL file on PostgreSQL:"
+              echo "$file"
+              echo "========================================"
+
+              PGPASSWORD=$POSTGRES_PASSWORD psql \
+                -h $POSTGRES_HOST \
+                -p $POSTGRES_PORT \
+                -U $POSTGRES_USER \
+                -d postgres \
+                -f "$file"
+
+              echo "Completed: $file"
+            fi
+
+          done
+
+      - name: Execute RW files on RisingWave
+        if: contains(steps.files.outputs.changed_files, '.rw')
+        shell: bash
+        run: |
+          set -e
+
+          echo "${{ steps.files.outputs.changed_files }}" | while read file; do
+
+            if [[ "$file" == *.rw ]]; then
+              echo "========================================"
+              echo "Running RW file on RisingWave:"
+              echo "$file"
+              echo "========================================"
+
+              psql \
+                -h $RISINGWAVE_HOST \
+                -p $RISINGWAVE_PORT \
+                -U $RISINGWAVE_USER \
+                -d dev \
+                -f "$file"
+
+              echo "Completed: $file"
+            fi
+
+          done
+
+      - name: Workflow Summary
+        run: |
+          echo "Pipeline validation completed successfully"
