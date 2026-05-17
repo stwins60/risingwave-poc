@@ -1,4 +1,4 @@
-# sample-query.rw
+# sample.rw
 
 statement ok
 CREATE TABLE orders (
