@@ -1,0 +1,49 @@
+# sample.rw
+
+statement ok
+CREATE TABLE orders (
+order_id BIGINT,
+customer_id BIGINT,
+amount DECIMAL,
+created_at TIMESTAMP
+);
+
+statement ok
+INSERT INTO orders VALUES
+(1, 101, 25.50, NOW()),
+(2, 101, 13.25, NOW()),
+(3, 102, 99.99, NOW()),
+(4, 103, 45.10, NOW()),
+(5, 101, 75.00, NOW());
+
+statement ok
+CREATE MATERIALIZED VIEW mv_customer_sales AS
+SELECT
+customer_id,
+COUNT(*) AS total_orders,
+SUM(amount) AS total_spent
+FROM orders
+GROUP BY customer_id;
+
+query
+SELECT * FROM mv_customer_sales;
+
+---
+
+101 3 113.75
+102 1 99.99
+103 1 45.10
+
+statement ok
+INSERT INTO orders VALUES
+(6, 102, 10.00, NOW()),
+(7, 103, 20.00, NOW());
+
+query
+SELECT * FROM mv_customer_sales;
+
+---
+
+101 3 113.75
+102 2 109.99
+103 2 65.10
